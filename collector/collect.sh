@@ -221,24 +221,25 @@ net_json() {
   local ep
   ep=$(date +%s)
 
-  # vnStat assumes the DB was written in the reading process's timezone. The
-  # host logs in UTC, so read with TZ=UTC to keep vnStat's `timestamp` fields
-  # honest, then format the display labels back in the container's own TZ
-  # (the jq after the pipe keeps the script's TZ; only vnstat sees UTC).
-  TZ=UTC vnstat --json --dbdir "$VNSTAT_DB" -i "$iface" 2>/dev/null | jq -c \
+  # vnStat reads its DB in the reading process's timezone, so the agent's TZ
+  # (from .env) MUST match the host's system timezone — then vnStat's own
+  # day/month buckets roll over at the right local midnight and its `timestamp`
+  # fields are correct epochs. (If .env TZ and the host differ, today/month
+  # boundaries will be off by the offset between them.)
+  vnstat --json --dbdir "$VNSTAT_DB" -i "$iface" 2>/dev/null | jq -c \
     --argjson rxBps "${rx_Bps:-0}" --argjson txBps "${tx_Bps:-0}" --arg iface "$iface" \
     --argjson now "$ep" '
     .interfaces[0] as $if | ($if.traffic) as $t |
     ( $if.created.timestamp // 0 ) as $created |
 
-    # average rate = bytes / seconds the bucket actually spans, measured from
-    # its own start (or the vnstat tracking start, whichever is later) to now.
+    # average rate = bytes / seconds the bucket actually spans, from its own
+    # start (or the vnstat tracking start, whichever is later) to now.
     def summary(bucket):
       ( bucket | last // {rx:0, tx:0, timestamp:$now} ) as $b |
       ( [ $now - ([ ($b.timestamp // 0), $created ] | max), 1 ] | max ) as $secs |
       { rx: $b.rx, tx: $b.tx, avgRx: ($b.rx / $secs), avgTx: ($b.tx / $secs) };
 
-    # recent buckets as chart bars, labelled in the local (container) timezone
+    # recent buckets as chart bars, labelled in local time
     def bars(bucket; n; short; long):
       ( bucket // [] | .[-n:] | map({
           label: ( .timestamp | strflocaltime(short) ),
