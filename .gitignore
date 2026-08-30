@@ -1,0 +1,7 @@
+.env
+www/data.json
+www/.trend
+www/.refresh
+data/
+www/config.json
+docker-compose.yml

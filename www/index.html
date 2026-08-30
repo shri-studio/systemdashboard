@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>systemdashboard</title>
+<link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Crect x='2' y='9' width='2' height='5' fill='%236bd88a'/%3E%3Crect x='5' y='6' width='2' height='8' fill='%236bd88a'/%3E%3Crect x='8' y='3' width='2' height='11' fill='%236bd88a'/%3E%3Crect x='11' y='7' width='2' height='7' fill='%236bd88a'/%3E%3C/svg%3E">
+<style>
+  @font-face {
+    font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400;
+    font-display: swap; src: url('fonts/jetbrains-mono-400.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500;
+    font-display: swap; src: url('fonts/jetbrains-mono-500.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'JetBrains Mono'; font-style: normal; font-weight: 700;
+    font-display: swap; src: url('fonts/jetbrains-mono-700.woff2') format('woff2');
+  }
+
+  /* ---- light (default) ---- */
+  :root {
+    --bg:        #f3f3f1;
+    --bg-panel:  #fbfbfa;
+    --border:    #bebdb2;
+    --dim:       #4b4b44;
+    --fg:        #201f19;
+    --fg-bright: #0c0c0a;
+    --green:  #17692a;
+    --cyan:   #05616d;
+    --amber:  #8a5200;
+    --red:    #b52121;
+    --magenta:#7a1a9e;
+    --blue:   #0d55a6;
+    --track:  #dedcd3;
+    --spark:  #b3b2a6;
+    --shadow: 0 1px 0 rgba(0,0,0,.03);
+    --glow: none;
+  }
+  /* ---- dark (pure black, neutral greys, colour only for data) ---- */
+  :root[data-theme="dark"] {
+    --bg:        #000000;
+    --bg-panel:  #0a0a0b;
+    --border:    #26262a;
+    --dim:       #9b9ba3;
+    --fg:        #dcdce0;
+    --fg-bright: #ffffff;
+    --green:  #4fd873;
+    --cyan:   #4fd0dc;
+    --amber:  #e9b84a;
+    --red:    #f96a5f;
+    --magenta:#cb96ff;
+    --blue:   #5fa4ff;
+    --track:  #1e1e22;
+    --spark:  #63636b;
+    --shadow: none;
+    --glow: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#000000; --bg-panel:#0a0a0b; --border:#26262a; --dim:#9b9ba3;
+      --fg:#dcdce0; --fg-bright:#ffffff; --green:#4fd873; --cyan:#4fd0dc;
+      --amber:#e9b84a; --red:#f96a5f; --magenta:#cb96ff; --blue:#5fa4ff;
+      --track:#1e1e22; --spark:#63636b; --shadow:none; --glow:none;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { background: var(--bg); }
+
+  body {
+    color: var(--fg);
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13.5px;
+    line-height: 1.55;
+    padding: 20px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* ---- header ---- */
+  .head {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    box-shadow: var(--shadow);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .head .title { color: var(--fg-bright); font-weight: 700; letter-spacing: .05em; }
+  .head .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); margin-right: 7px; vertical-align: middle;
+    box-shadow: 0 0 6px var(--green); animation: blink 2.4s infinite;
+  }
+  .head .dot.stale { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .head .dot.down  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+  @keyframes flashring { 0%{box-shadow:0 0 0 0 var(--cyan)} 100%{box-shadow:0 0 0 7px transparent} }
+  .head .dot.flash { animation: flashring .5s ease-out; }
+  .head .meta { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  .head .right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .head .hclock { color: var(--fg-bright); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .head .hdate { color: var(--dim); font-size: 12px; }
+  .keyhint { color: var(--dim); font-size: 12px; margin-top: 4px; }
+  .keyhint b { color: var(--cyan); font-weight: 500; cursor: pointer; }
+
+  /* ---- grid: 6-col; panels are normal (2), wide (3), or full (6) ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+    align-items: stretch;
+  }
+  .grid > .panel { grid-column: span 2; }
+  .grid > .p-wide { grid-column: span 3; }
+  .grid > .p-full { grid-column: span 6; }
+  .span-all { grid-column: 1 / -1; }
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .grid > .panel, .grid > .p-wide { grid-column: span 1; }
+    .grid > .p-full { grid-column: span 2; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid > .panel, .grid > .p-wide, .grid > .p-full { grid-column: span 1; }
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    box-shadow: var(--shadow);
+    padding: 14px 14px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .panel > h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .panel > h2 .h2note { color: var(--dim); font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+  .row { display: flex; justify-content: space-between; gap: 10px; white-space: nowrap; }
+  .row + .row { margin-top: 3px; }
+  .k { color: var(--dim); }
+  .v { color: var(--fg-bright); }
+  .muted { color: var(--dim); }
+
+  .big { font-size: 23px; font-weight: 700; color: var(--fg-bright); line-height: 1.2; }
+  .big .unit { font-size: 13.5px; font-weight: 500; color: var(--dim); }
+  .big.c-green { color: var(--green); }
+  .big.c-amber { color: var(--amber); }
+  .big.c-red   { color: var(--red); }
+
+  .hl-amber { color: var(--amber); }
+  .hl-red   { color: var(--red); }
+  .rx { color: var(--cyan); }
+  .tx { color: var(--magenta); }
+
+  .meter { display: flex; align-items: center; gap: 10px; margin: 9px 0 5px; }
+  .meter .track {
+    flex: 1; height: 12px; background: var(--track);
+    position: relative; overflow: hidden;
+  }
+  .meter .track i { position: absolute; inset: 0 auto 0 0; display: block; background: currentColor; }
+  .meter .pct { min-width: 44px; text-align: right; color: var(--fg-bright); font-size: 12.5px; font-weight: 500; }
+  .meter.c-green  { color: var(--green); }
+  .meter.c-amber  { color: var(--amber); }
+  .meter.c-red    { color: var(--red); }
+  .meter.c-blue   { color: var(--blue); }
+  .meter.c-magenta{ color: var(--magenta); }
+
+  .spark {
+    white-space: pre; font-size: 16px; line-height: 1; color: var(--cyan);
+    letter-spacing: 1px; word-break: break-all; margin-top: 6px;
+  }
+  .sparkmini { color: var(--spark); margin-top: 8px; height: 22px; }
+  .sparkmini svg { width: 100%; height: 22px; display: block; }
+
+  /* per-core cpu */
+  .cores { display: flex; gap: 3px; margin-top: 10px; align-items: flex-end; height: 13px; }
+  .cores .cbar {
+    flex: 1; background: var(--track); position: relative; min-width: 4px;
+    align-self: stretch;
+  }
+  .cores .cbar i { position: absolute; inset: auto 0 0 0; display: block; min-height: 1px; background: var(--green); }
+  .cores .cbar.hot i  { background: var(--amber); }
+  .cores .cbar.max i  { background: var(--red); }
+  .cores-lbl { color: var(--dim); font-size: 12px; margin-top: 6px; }
+
+  .netrate { display: flex; gap: 26px; font-size: 18px; font-weight: 700; flex-wrap: wrap; margin-bottom: 4px; }
+  .nettab { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; table-layout: fixed; }
+  .nettab col.c0 { width: 17%; }
+  .nettab col.cb { width: 15%; }
+  .nettab col.ca { width: 19%; }
+  .nettab th {
+    font-weight: 400; color: var(--dim); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .06em; text-align: right; padding: 0 0 8px; white-space: nowrap;
+  }
+  .nettab td { text-align: right; padding: 7px 0; color: var(--fg-bright); white-space: nowrap; }
+  .nettab th:first-child, .nettab td:first-child {
+    text-align: left; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .05em; font-size: 12px;
+  }
+  .nettab th.rx, .nettab td.rx { color: var(--cyan); }
+  .nettab th.tx, .nettab td.tx { color: var(--magenta); }
+  .nettab tr + tr td { border-top: 1px solid var(--border); }
+  .netest { color: var(--dim); font-size: 12.5px; margin-top: 12px; }
+
+  /* two-tone 30-day bars: download (cyan) base, upload (magenta) cap */
+  .netbars { display: flex; gap: 3px; align-items: flex-end; height: 108px; margin-top: 12px; }
+  .netbars .d {
+    flex: 1 1 10px; max-width: 34px; align-self: stretch;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    background: var(--track);
+  }
+  .netbars .d .dn { background: var(--cyan); width: 100%; flex-shrink: 0; }
+  .netbars .d .up { background: var(--magenta); width: 100%; flex-shrink: 0; }
+  .netbars-lbl { color: var(--fg); font-size: 12.5px; margin-top: 8px; }
+  .nvtoggle { cursor: pointer; color: var(--dim); padding-bottom: 1px; margin-right: 4px; }
+  .nvtoggle:hover { color: var(--fg); }
+  .nvtoggle.on { color: var(--cyan); border-bottom: 1px solid var(--cyan); }
+  #net-days-range { margin-left: 8px; }
+  .netbars-key { color: var(--dim); }
+
+  .disk { margin-bottom: 11px; }
+  .disk:last-child { margin-bottom: 2px; }
+  .disk .dtop { display: flex; justify-content: space-between; gap: 10px; }
+  .disk .dname { color: var(--fg-bright); }
+  .disk .dmodel { color: var(--dim); font-size: 12px; }
+  .disk .dmodel .dfree { color: var(--fg); }
+  .disk .dwarn { color: var(--amber); }
+
+  .cd { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .cd.up   { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .cd.warn { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+  .cd.down { background: var(--red); }
+  .cd.idle { background: var(--dim); }
+
+  /* per-container list — responsive multi-column */
+  .h2note .dim { color: var(--dim); }
+  .svsort { cursor: pointer; color: var(--dim); padding-bottom: 1px; }
+  .svsort:hover { color: var(--fg); }
+  .svsort.on { color: var(--cyan); border-bottom: 1px solid var(--cyan); }
+  .svclist { column-width: 460px; column-gap: 40px; }
+  .svc { break-inside: avoid; border-top: 1px solid var(--border); }
+  .svc-main {
+    display: grid; grid-template-columns: minmax(120px, 1.5fr) minmax(56px, 1.2fr) 42px 48px;
+    gap: 12px; align-items: center; padding: 5px 0;
+  }
+  .svclist.ctl .svc-main { cursor: pointer; }
+  .svclist.ctl .svc-main:hover, .svc.open .svc-main { background: var(--bg); }
+  .svc .sname {
+    color: var(--fg-bright); overflow: hidden; line-height: 1.25; word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .svc .sname .cd { position: relative; top: -1px; }
+  .svc .scpubar { height: 6px; background: var(--track); position: relative; overflow: hidden; }
+  .svc .scpubar.flat { opacity: .3; }
+  .svc .scpubar i { position: absolute; inset: 0 auto 0 0; background: currentColor; }
+  .svc.cpu-ok  .scpubar { color: var(--green); }
+  .svc.cpu-hot .scpubar { color: var(--amber); }
+  .svc.cpu-max .scpubar { color: var(--red); }
+  .svc .scpu, .svc .smem { text-align: right; font-size: 12.5px; color: var(--fg-bright); }
+  .svc .scpu.hl-amber, .svc .smem.hl-amber { color: var(--amber); }
+  .svc .scpu.hl-red,   .svc .smem.hl-red   { color: var(--red); }
+  .svc .sstate { grid-column: 2 / -1; text-align: right; color: var(--dim); font-size: 12px; white-space: nowrap; }
+  .svc-ctl { display: none; gap: 5px; padding: 1px 0 9px 18px; flex-wrap: wrap; align-items: center; }
+  .svc.open .svc-ctl { display: flex; }
+  .svc .sb {
+    background: none; border: 1px solid var(--border); padding: 3px 9px; cursor: pointer;
+    font-family: inherit; font-size: 12px; line-height: 1.3; color: var(--dim); text-decoration: none;
+  }
+  .svc .sb:hover { color: var(--fg-bright); border-color: var(--dim); }
+  .svc .sb.stop:hover  { color: var(--red);   border-color: var(--red); }
+  .svc .sb.start:hover { color: var(--green); border-color: var(--green); }
+  .svc .sb[disabled] { opacity: .4; cursor: default; }
+  .svmore { color: var(--cyan); cursor: pointer; font-size: 12px; margin-top: 10px; display: inline-block; }
+  .svmore:hover { text-decoration: underline; }
+
+  #logs-body {
+    margin: 0; padding: 14px 16px; max-height: 62vh; overflow: auto;
+    font-family: inherit; font-size: 12px; line-height: 1.5; color: var(--fg);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--bg-panel); border: 1px solid var(--border); color: var(--fg-bright);
+    padding: 8px 16px; font-size: 12.5px; z-index: 60; opacity: 0;
+    transition: opacity .2s; pointer-events: none; max-width: 90vw;
+  }
+  #toast.show { opacity: 1; }
+  #toast.err { border-color: var(--red); color: var(--red); }
+
+  .netbars .d:hover { outline: 1px solid var(--dim); outline-offset: -1px; }
+  #nettip {
+    position: fixed; z-index: 60; pointer-events: none; opacity: 0;
+    background: var(--bg-panel); border: 1px solid var(--border); padding: 7px 10px;
+    font-size: 12px; line-height: 1.5; white-space: nowrap; transition: opacity .12s;
+  }
+  #nettip.show { opacity: 1; }
+  #nettip .nd { color: var(--dim); margin-bottom: 2px; }
+
+  .overlay.mid { align-items: center; }
+  #confirm-msg { color: var(--fg-bright); font-size: 13.5px; line-height: 1.55; padding: 16px; }
+  #confirm-msg .cq { color: var(--dim); font-size: 12.5px; display: block; margin-top: 6px; }
+  .cbtns { display: flex; gap: 8px; justify-content: flex-end; padding: 0 16px 14px; }
+  .cbtns button {
+    background: none; border: 1px solid var(--border); color: var(--dim);
+    font-family: inherit; font-size: 12.5px; padding: 6px 14px; cursor: pointer;
+  }
+  .cbtns button:hover { color: var(--fg-bright); border-color: var(--dim); }
+  .cbtns button.danger:hover { color: var(--red); border-color: var(--red); }
+
+  .clocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
+  .clock .ct { font-size: 19px; color: var(--fg-bright); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .clock .cl { font-size: 12px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
+  .clock .cdte { font-size: 12px; color: var(--dim); }
+
+  .wx { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .wx .wnow { display: flex; gap: 10px; align-items: baseline; }
+  .wx .wicon { font-size: 20px; }
+  .wx .wtemp { font-size: 20px; color: var(--fg-bright); font-weight: 500; }
+  .wx .wname { color: var(--fg-bright); }
+  .wx .wsub { color: var(--dim); font-size: 12px; }
+  .wx .wfc { display: flex; gap: 18px; margin-top: 12px; }
+  .wx .fc { font-size: 12px; color: var(--fg); display: flex; align-items: center; gap: 5px; }
+  .wx .fcd { color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+  .wx .fct { color: var(--fg-bright); }
+  .wx .fcl { color: var(--dim); margin-left: 3px; }
+
+  /* ---- prompt ---- */
+  .prompt {
+    margin-top: 16px;
+    color: var(--dim);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .prompt .ps1 { color: var(--green); }
+  .cursor {
+    display: inline-block; width: 8px; height: 14px; background: var(--fg);
+    vertical-align: -2px; animation: blink 1s step-end infinite;
+  }
+
+  /* ---- settings overlay ---- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto; z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    max-width: 640px; width: 100%; padding: 0;
+  }
+  .modal h3 {
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim);
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+  }
+  .modal h3 .x { color: var(--red); cursor: pointer; }
+  .modal .body { padding: 16px; }
+  .modal section { margin-bottom: 20px; }
+  .modal section > label { display: block; color: var(--fg-bright); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
+  .modal .item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .modal .item .txt { flex: 1; color: var(--fg); }
+  .modal .item .rm { color: var(--red); cursor: pointer; border: 1px solid var(--border); padding: 0 7px; }
+  .modal input[type=text], .modal input[type=number], .modal select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--fg-bright);
+    font-family: inherit; font-size: 12px; padding: 5px 8px; width: 100%;
+  }
+  .modal .addrow { display: flex; gap: 6px; margin-top: 6px; }
+  .modal .addrow button, .modal .btns button {
+    background: var(--bg); border: 1px solid var(--border); color: var(--cyan);
+    font-family: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .modal .addrow button:hover, .modal .btns button:hover { border-color: var(--cyan); }
+  .modal .toggles { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .modal .toggles label { color: var(--fg); cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 12px; }
+
+  .favrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  #fav-preview { width: 22px; height: 22px; object-fit: contain; background: var(--bg); border: 1px solid var(--border); }
+
+  .panelcfg { display: flex; flex-direction: column; gap: 3px; }
+  .pcf {
+    display: grid; grid-template-columns: 18px 1fr auto auto; gap: 8px; align-items: center;
+    padding: 5px 8px; background: var(--bg); border: 1px solid var(--border);
+  }
+  .pcf.drag-over { border-color: var(--cyan); }
+  .pcf .grip { color: var(--dim); cursor: grab; text-align: center; user-select: none; }
+  .pcf .pn { color: var(--fg-bright); text-transform: uppercase; letter-spacing: .05em; font-size: 12px; }
+  .pcf select {
+    background: var(--bg-panel); border: 1px solid var(--border); color: var(--fg);
+    font-family: inherit; font-size: 11.5px; padding: 2px 4px;
+  }
+  .pcf label { color: var(--dim); font-size: 11.5px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .pcf.off .pn, .pcf.off select { opacity: .4; }
+  .modal .btns { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .modal .geo-results { margin-top: 6px; }
+  .modal .geo-results div { padding: 3px 6px; cursor: pointer; color: var(--fg); }
+  .modal .geo-results div:hover { background: var(--track); color: var(--fg-bright); }
+  .modal textarea {
+    width: 100%; height: 160px; background: var(--bg); border: 1px solid var(--border);
+    color: var(--fg); font-family: inherit; font-size: 12px; padding: 8px; margin-top: 8px;
+  }
+  .hidden { display: none !important; }
+
+  .meter .track i, .cores .cbar i, .stat-bar-fill { transition: width .5s ease, height .5s ease; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+    .head .dot { opacity: 1 !important; }
+    .cursor { animation: none !important; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <div class="title"><span id="statusdot" class="dot"></span><span id="hostname">systemdashboard</span></div>
+      <div class="meta" id="hostmeta">connecting&hellip;</div>
+    </div>
+    <div class="right">
+      <div class="hclock" id="headclock">--:--:--</div>
+      <div class="hdate" id="headdate">&mdash;</div>
+      <div class="keyhint"><b id="btn-refresh">[r] refresh</b> &nbsp; <b id="btn-settings">[s] settings</b> &nbsp; <b id="btn-theme">[t] theme</b> &nbsp; <a href="/__auth/logout" style="color:var(--dim)">[logout]</a></div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid">
+    <div class="panel" data-panel="mem">
+      <h2>memory <span class="h2note" id="mem-note"></span></h2>
+      <div class="big"><span id="mem-used">--</span> <span class="unit">/ <span id="mem-total">--</span></span></div>
+      <div id="mem-bar"></div>
+      <div class="sparkmini" id="mem-spark"></div>
+      <div class="row" style="margin-top:8px"><span class="k">used</span><span class="v" id="mem-used2">--</span></div>
+      <div class="row"><span class="k">cache/buffers</span><span class="v" id="mem-cache">--</span></div>
+      <div class="row"><span class="k">available</span><span class="v" id="mem-avail">--</span></div>
+      <div class="row"><span class="k">swap</span><span class="v" id="mem-swap">--</span></div>
+    </div>
+
+    <div class="panel" data-panel="cpu">
+      <h2>cpu <span class="h2note" id="cpu-note"></span></h2>
+      <div class="big"><span id="cpu-pct">--</span><span class="unit">%</span></div>
+      <div id="cpu-bar"></div>
+      <div class="sparkmini" id="cpu-spark"></div>
+      <div class="row" style="margin-top:8px"><span class="k">load 1m / 5m / 15m</span><span class="v" id="cpu-load">-- / -- / --</span></div>
+      <div class="row"><span class="k">load / core</span><span class="v" id="cpu-loadn">--</span></div>
+      <div id="cpu-cores-wrap">
+        <div class="cores" id="cpu-cores"></div>
+        <div class="cores-lbl">per-core utilisation</div>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="temp">
+      <h2>thermal</h2>
+      <div class="big"><span id="temp-pkg">--</span><span class="unit">&deg;C package</span></div>
+      <div id="temp-bar"></div>
+      <div class="sparkmini" id="temp-spark"></div>
+      <div class="row" style="margin-top:10px"><span class="k">range (session)</span><span class="v" id="temp-range">--</span></div>
+      <div class="row"><span class="k">sensors</span><span class="v" id="temp-cores" style="white-space:normal;text-align:right">--</span></div>
+    </div>
+
+    <div class="panel" data-panel="storage">
+      <h2>storage</h2>
+      <div id="disks"></div>
+    </div>
+
+    <div class="panel" data-panel="network">
+      <h2>network <span class="h2note" id="net-iface"></span></h2>
+      <div class="netrate">
+        <span class="rx">&darr; <span id="net-rx-rate">--</span></span>
+        <span class="tx">&uarr; <span id="net-tx-rate">--</span></span>
+      </div>
+      <table class="nettab">
+        <colgroup>
+          <col class="c0"><col class="cb"><col class="cb">
+          <col class="cb"><col class="ca"><col class="ca">
+        </colgroup>
+        <thead><tr>
+          <th></th><th class="rx">down</th><th class="tx">up</th>
+          <th>total</th><th>avg&nbsp;&darr;</th><th>avg&nbsp;&uarr;</th>
+        </tr></thead>
+        <tbody id="net-tbody"></tbody>
+      </table>
+      <div class="netest" id="net-est"></div>
+      <div class="netbars-lbl">
+        <span class="nvtoggle" data-v="30d">30d</span>
+        <span class="nvtoggle" data-v="24h">24h</span>
+        <span id="net-days-range" class="muted"></span></div>
+      <div class="netbars" id="net-bars"></div>
+    </div>
+
+    <div class="panel" data-panel="docker">
+      <h2>services
+        <span class="h2note">
+          <span class="dim">sort</span>
+          <span class="svsort" data-s="mem">mem</span>
+          <span class="svsort" data-s="cpu">cpu</span>
+          &nbsp; <span id="docker-note"></span>
+        </span>
+      </h2>
+      <div class="svclist" id="docker-list"></div>
+      <span class="svmore hidden" id="svc-more"></span>
+    </div>
+
+    <div class="panel" data-panel="clocks">
+      <h2>world clocks</h2>
+      <div class="clocks" id="clocks"></div>
+    </div>
+
+    <div class="panel" data-panel="weather">
+      <h2>weather</h2>
+      <div class="wx" id="weather"></div>
+    </div>
+  </div>
+
+  <div class="prompt">
+    <span><span class="ps1" id="ps1">visitor@host</span>:~$ <span class="cursor"></span></span>
+    <span id="lastupdate">&mdash;</span>
+  </div>
+</div>
+
+<!-- settings -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>config <span class="x" id="settings-close">[esc]</span></h3>
+    <div class="body">
+      <section>
+        <label>dashboard name &amp; icon</label>
+        <div class="addrow">
+          <input type="text" id="cfg-name" placeholder="shown in the browser tab">
+        </div>
+        <div class="favrow">
+          <img id="fav-preview" alt="">
+          <button id="fav-upload">upload image</button>
+          <input type="file" id="fav-file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden>
+          <input type="text" id="fav-emoji" placeholder="or an emoji" maxlength="4" style="max-width:110px">
+          <button id="fav-clear">clear</button>
+        </div>
+      </section>
+
+      <section>
+        <label>panels &mdash; drag to reorder</label>
+        <div id="cfg-panels" class="panelcfg"></div>
+      </section>
+
+      <section>
+        <label>weather locations</label>
+        <div id="cfg-weather"></div>
+        <div class="addrow">
+          <input type="text" id="wx-search" placeholder="add city, e.g. Bengaluru">
+          <button id="wx-add">search</button>
+        </div>
+        <div class="geo-results" id="wx-results"></div>
+      </section>
+
+      <section>
+        <label>world clocks</label>
+        <div id="cfg-clocks"></div>
+        <div class="addrow">
+          <input type="text" id="clk-label" placeholder="label" style="max-width:130px">
+          <input type="text" id="clk-tz" list="tzlist" placeholder="Area/City timezone">
+          <button id="clk-add">add</button>
+        </div>
+        <datalist id="tzlist"></datalist>
+      </section>
+
+      <section>
+        <label>refresh interval (seconds)</label>
+        <input type="number" id="cfg-refresh" min="3" max="600" style="max-width:110px">
+      </section>
+    </div>
+    <div class="btns">
+      <button id="cfg-save">save</button>
+      <button id="cfg-reset">reset to defaults</button>
+      <button id="cfg-export">export json</button>
+    </div>
+    <div class="body hidden" id="export-wrap">
+      <label id="export-lbl" style="color:var(--dim);font-size:12px"></label>
+      <textarea id="export-text" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- container logs -->
+<div class="overlay" id="logs-overlay">
+  <div class="modal" style="max-width:860px">
+    <h3><span id="logs-title">logs</span> <span class="x" id="logs-close">[esc]</span></h3>
+    <pre id="logs-body">loading&hellip;</pre>
+  </div>
+</div>
+
+<!-- confirm -->
+<div class="overlay mid" id="confirm-overlay">
+  <div class="modal" style="max-width:400px">
+    <h3><span id="confirm-title">confirm</span> <span class="x" id="confirm-x">[esc]</span></h3>
+    <div id="confirm-msg"></div>
+    <div class="cbtns">
+      <button id="confirm-no">cancel</button>
+      <button id="confirm-yes">confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- 30-day bar hover tooltip -->
+<div id="nettip"></div>
+
+<!-- toast -->
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ utils */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+// package temp (°C) -> 0-100% of the display band, for the meter and sparkline
+const tempPct = t => clamp((t - 30) / 65 * 100, 0, 100);
+
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  const u = ["B", "K", "M", "G", "T", "P"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)) + u[i];
+}
+function fmtRate(Bps) {
+  Bps = Number(Bps) || 0;
+  const u = ["B/s", "KB/s", "MB/s", "GB/s"];
+  let i = 0;
+  while (Bps >= 1024 && i < u.length - 1) { Bps /= 1024; i++; }
+  return (Bps < 10 && i > 0 ? Bps.toFixed(1) : Math.round(Bps)) + " " + u[i];
+}
+function fmtDur(sec) {
+  sec = Number(sec) || 0;
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return (d ? d + "d " : "") + (h || d ? h + "h " : "") + m + "m";
+}
+
+// health -> "ok" | "warn" | "crit"  (value, warn threshold, crit threshold)
+function health(v, warn, crit) { return v >= crit ? "crit" : v >= warn ? "warn" : "ok"; }
+const HCLS = { ok: "c-green", warn: "c-amber", crit: "c-red" };   // big numbers / meters
+const HL   = { ok: "",        warn: "hl-amber", crit: "hl-red" };  // inline value highlight
+
+function meter(pct, forceCls) {
+  pct = clamp(pct, 0, 100);
+  const cls = forceCls || HCLS[health(pct, 70, 90)];
+  return `<div class="meter ${cls}"><div class="track"><i style="width:${pct.toFixed(1)}%"></i></div>`
+    + `<span class="pct">${Math.round(pct)}%</span></div>`;
+}
+
+// thin line sparkline as inline SVG (crisper than block chars at small sizes)
+// trend line as inline SVG; `pct` values are 0–100, coloured green→amber→red
+// by height (a past spike stays visibly red at that point of the line)
+let sparkUid = 0;
+function sparkSvg(pcts) {
+  const vals = pcts.filter(v => v != null);
+  if (vals.length < 3) return "";
+  const W = 240, H = 22, id = "sg" + (++sparkUid);
+  const step = W / (vals.length - 1);
+  const y = v => H - 1.5 - (clamp(v, 0, 100) / 100) * (H - 3);
+  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`
+    + `<defs><linearGradient id="${id}" x1="0" y1="${H}" x2="0" y2="0" gradientUnits="userSpaceOnUse">`
+    + `<stop offset="0" style="stop-color:var(--green)"/>`
+    + `<stop offset="0.62" style="stop-color:var(--green)"/>`
+    + `<stop offset="0.78" style="stop-color:var(--amber)"/>`
+    + `<stop offset="0.92" style="stop-color:var(--red)"/></linearGradient></defs>`
+    + `<polyline points="${pts}" fill="none" stroke="url(#${id})" stroke-width="1.5" `
+    + `stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+/* ------------------------------------------------------------------ config */
+const LS_KEY = "sysdash.cfg";
+let DEFAULTS = {};
+let cfg = {};
+
+async function loadConfig() {
+  try {
+    DEFAULTS = await (await fetch("config.json?t=" + Date.now())).json();
+  } catch (e) { DEFAULTS = {}; }
+  DEFAULTS = Object.assign({
+    title: "systemdashboard", favicon: "", refreshSec: 120,
+    weather: [], clocks: [], disks: {},
+    panels: { mem: 1, cpu: 1, temp: 1, storage: 1, network: 1, docker: 1, clocks: 1, weather: 1 },
+    panelOrder: ["mem", "cpu", "temp", "storage", "network", "docker", "clocks", "weather"],
+    panelSize: { mem: "normal", cpu: "normal", temp: "normal", storage: "wide",
+                 network: "wide", docker: "full", clocks: "normal", weather: "normal" }
+  }, DEFAULTS);
+
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
+  cfg = saved ? deepMerge(structuredClone(DEFAULTS), saved) : structuredClone(DEFAULTS);
+  // make sure every panel appears exactly once in the order list
+  const known = Object.keys(DEFAULTS.panels);
+  cfg.panelOrder = [...(cfg.panelOrder || []).filter(p => known.includes(p)),
+                    ...known.filter(p => !(cfg.panelOrder || []).includes(p))];
+}
+
+function applyBranding() {
+  const name = cfg.title || "systemdashboard";
+  document.title = name;
+  if (cfg.favicon) $("#favicon").href = cfg.favicon;
+}
+function applyLayout() {
+  const grid = $("#grid");
+  const order = (cfg.panelOrder && cfg.panelOrder.length) ? cfg.panelOrder : Object.keys(DEFAULTS.panels);
+  order.forEach((p, i) => {
+    const el = grid.querySelector(`[data-panel="${p}"]`);
+    if (!el) return;
+    el.style.order = i;
+    const size = (cfg.panelSize && cfg.panelSize[p]) || "normal";
+    el.classList.remove("p-normal", "p-wide", "p-full");
+    el.classList.add("p-" + size);
+    el.classList.toggle("hidden", cfg.panels[p] === false);
+  });
+}
+function deepMerge(a, b) {
+  for (const k in b) {
+    if (b[k] && typeof b[k] === "object" && !Array.isArray(b[k])) {
+      a[k] = deepMerge(a[k] || {}, b[k]);
+    } else { a[k] = b[k]; }
+  }
+  return a;
+}
+function saveConfig() { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+
+/* ------------------------------------------------------------------ theme */
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme")
+    || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+function toggleTheme() {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  $("#btn-theme").textContent = `[t] ${next}`;
+  try { localStorage.setItem("sysdash.theme", next); } catch (e) {}
+}
+(function initTheme() {
+  let t = null;
+  try { t = localStorage.getItem("sysdash.theme"); } catch (e) {}
+  if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+})();
+
+/* ------------------------------------------------------------------ render: metrics */
+let lastData = null;
+const HISTLEN = 60;   // matches the agent's `tail -n 60`: 60 samples = 60 × INTERVAL of trend
+let hist = { cpu: [], mem: [], temp: [] };
+let trendFromServer = false;
+function pushHist(k, v) {
+  if (trendFromServer) return;   // the agent's `d.trend` is the source once we've seen it
+  hist[k].push(v); if (hist[k].length > HISTLEN) hist[k].shift();
+}
+
+// the agent keeps a rolling cpu/mem/temp history and ships it in `d.trend`,
+// so the sparklines are populated on the first load instead of after several
+// polls. Fall back to accumulating client-side if an older agent omits it.
+function seedTrend(d) {
+  if (!Array.isArray(d.trend) || d.trend.length < 2) return;
+  hist = {
+    cpu:  d.trend.map(x => x.cpu).slice(-HISTLEN),
+    mem:  d.trend.map(x => x.mem).slice(-HISTLEN),
+    temp: d.trend.map(x => x.temp).filter(v => v != null).slice(-HISTLEN),
+  };
+  trendFromServer = true;
+}
+
+async function tick() {
+  try {
+    const d = await (await fetch("data.json?t=" + Date.now())).json();
+    lastData = d;
+    renderMetrics(d);
+    setStatus(d.ts);
+  } catch (e) {
+    setStatus(lastData ? lastData.ts : 0, true);
+  }
+}
+
+function setStatus(ts, hardFail) {
+  const dot = $("#statusdot");
+  const age = Date.now() / 1000 - (ts || 0);
+  const rs = cfg.refreshSec || 120;
+  let label;
+  dot.classList.remove("down", "stale");
+  if (hardFail && !ts) { dot.classList.add("down"); label = "agent unreachable"; }
+  else if (age > rs * 3) { dot.classList.add("stale"); label = "stale " + fmtDur(age) + " old"; }
+  else { label = "online"; }
+  $("#lastupdate").textContent = label + " · " +
+    new Date((ts || 0) * 1000).toLocaleTimeString();
+}
+
+function renderMetrics(d) {
+  seedTrend(d);
+
+  // header
+  if (d.host) {
+    $("#hostname").textContent = d.host.name || "host";
+    $("#ps1").textContent = "visitor@" + (d.host.name || "host");
+    $("#hostmeta").textContent =
+      [d.host.distro, "kernel " + d.host.kernel, "up " + fmtDur(d.host.uptime)]
+        .filter(Boolean).join("  ·  ");
+  }
+
+  // memory
+  if (d.mem) {
+    const m = d.mem, pct = m.total ? (m.used / m.total) * 100 : 0;
+    const swapPct = m.swapTotal ? (m.swapUsed / m.swapTotal) * 100 : 0;
+    pushHist("mem", pct);
+    const hc = HCLS[health(pct, 75, 90)];
+    $("#mem-used").textContent  = fmtBytes(m.used);
+    $("#mem-used").closest(".big").className = "big " + hc;
+    $("#mem-total").textContent = fmtBytes(m.total);
+    $("#mem-bar").innerHTML     = meter(pct, hc);
+    $("#mem-spark").innerHTML = sparkSvg(hist.mem);
+    $("#mem-used2").textContent = fmtBytes(m.used);
+    $("#mem-cache").textContent = fmtBytes(m.cache);
+    $("#mem-avail").textContent = fmtBytes(m.available);
+    const sw = $("#mem-swap");
+    sw.textContent = m.swapTotal ? fmtBytes(m.swapUsed) + " / " + fmtBytes(m.swapTotal) : "off";
+    sw.className = "v " + (swapPct >= 25 ? "hl-red" : swapPct > 1 ? "hl-amber" : "");
+    $("#mem-note").textContent = Math.round(pct) + "% in use";
+  }
+
+  // cpu
+  if (d.cpu) {
+    const c = d.cpu;
+    pushHist("cpu", c.usage);
+    $("#cpu-pct").textContent  = c.usage;
+    $("#cpu-pct").closest(".big").className = "big " + HCLS[health(c.usage, 70, 90)];
+    $("#cpu-bar").innerHTML    = meter(c.usage);
+    $("#cpu-spark").innerHTML = sparkSvg(hist.cpu);
+    const ratio = c.cores ? c.load[0] / c.cores : 0;
+    const lh = HL[health(ratio, 1, 2)];
+    $("#cpu-load").innerHTML = `<span class="${lh}">${c.load.map(x => x.toFixed(2)).join(" / ")}</span>`;
+    $("#cpu-loadn").textContent = c.cores ? ratio.toFixed(2) + " × " + c.cores : "—";
+    $("#cpu-note").textContent = c.cores + " threads";
+    const per = c.per || [];
+    $("#cpu-cores").innerHTML = per.map(v => {
+      const cls = v >= 85 ? "max" : v >= 55 ? "hot" : "";
+      return `<span class="cbar ${cls}" title="${v}%"><i style="height:${clamp(v, 2, 100)}%"></i></span>`;
+    }).join("");
+    $("#cpu-cores-wrap").classList.toggle("hidden", !per.length);
+  }
+
+  // thermal
+  if (d.temp) {
+    const t = d.temp, pkg = t.package;
+    if (pkg != null) pushHist("temp", pkg);
+    const hc = HCLS[pkg == null ? "ok" : health(pkg, 70, 85)];
+    $("#temp-pkg").textContent = pkg != null ? Math.round(pkg) : "—";
+    $("#temp-pkg").closest(".big").className = "big " + hc;
+    const tp = pkg != null ? tempPct(pkg) : 0;
+    $("#temp-bar").innerHTML = meter(tp, hc).replace(/<span class="pct">.*?<\/span>/,
+      `<span class="pct">${pkg != null ? Math.round(pkg) + "°" : "--"}</span>`);
+    $("#temp-spark").innerHTML = sparkSvg(hist.temp.map(tempPct));
+    if (hist.temp.length) {
+      const lo = Math.min(...hist.temp), hi = Math.max(...hist.temp);
+      const av = hist.temp.reduce((a, b) => a + b, 0) / hist.temp.length;
+      $("#temp-range").textContent = `${Math.round(lo)}° – ${Math.round(hi)}°  ·  avg ${Math.round(av)}°`;
+    }
+    const cores = (t.sensors || []).filter(s => /core/i.test(s.label));
+    $("#temp-cores").textContent = cores.length
+      ? cores.map(s => s.label.replace(/^Core /, "c") + " " + Math.round(s.value) + "°").join("  ")
+      : (t.sensors || []).map(s => s.label + " " + Math.round(s.value) + "°").join("  ");
+  }
+
+  // storage
+  if (d.disks) {
+    $("#disks").innerHTML = d.disks.map(dk => {
+      const meta = (cfg.disks && cfg.disks[dk.mount]) || {};
+      const name = esc(meta.label || dk.mount);
+      const kind = esc(dk.model
+        ? dk.model + (dk.rotational ? " · hdd" : " · ssd")
+        : (dk.fstype || dk.source || ""));
+      const warn = meta.warn ? ` <span class="dwarn">⚠ ${esc(meta.warn)}</span>` : "";
+      const cls = HCLS[health(dk.pct, 78, 90)];
+      const freePct = dk.size ? (dk.avail / dk.size) * 100 : 100;
+      const freeCls = freePct < 5 ? "hl-red" : freePct < 10 ? "hl-amber" : "dfree";
+      return `<div class="disk">
+        <div class="dtop">
+          <span class="dname">${name} <span class="muted">${esc(dk.mount)}</span></span>
+          <span class="v">${fmtBytes(dk.used)} / ${fmtBytes(dk.size)}</span>
+        </div>
+        ${meter(dk.pct, cls)}
+        <div class="dmodel">${kind} <span class="${freeCls}">· ${fmtBytes(dk.avail)} free</span>${warn}</div>
+      </div>`;
+    }).join("");
+  }
+
+  // network
+  if (d.net) {
+    const n = d.net;
+    $("#net-iface").textContent = n.iface || "";
+    $("#net-rx-rate").textContent = fmtRate(n.rateRx);
+    $("#net-tx-rate").textContent = fmtRate(n.rateTx);
+
+    const trow = (label, o, withAvg) => `<tr>`
+      + `<td>${label}</td>`
+      + `<td class="rx">${fmtBytes(o.rx)}</td>`
+      + `<td class="tx">${fmtBytes(o.tx)}</td>`
+      + `<td>${fmtBytes(o.rx + o.tx)}</td>`
+      + `<td class="rx">${withAvg ? fmtRate(o.avgRx) : "—"}</td>`
+      + `<td class="tx">${withAvg ? fmtRate(o.avgTx) : "—"}</td>`
+      + `</tr>`;
+    $("#net-tbody").innerHTML =
+      trow("today", n.today, true) + trow("month", n.month, true) + trow("all time", n.total, false);
+
+    const now = new Date();
+    const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const frac = (now.getDate() - 1 + now.getHours() / 24) / dim;
+    $("#net-est").textContent = frac > 0.02
+      ? "projected " + fmtBytes((n.month.rx + n.month.tx) / frac) + " this month" : "";
+
+    netData = n;
+    renderNetBars();
+  }
+  $("[data-panel=network]").classList.toggle("hidden",
+    !d.net || cfg.panels.network === false);
+
+  // docker — stash and render (sort / expand handled separately)
+  if (d.docker) { dockerData = d.docker; renderDocker(); }
+}
+
+/* ------------------------------------------------------------------ network bars */
+let netData = null;
+let netView = "30d";            // "30d" | "24h"
+function renderNetBars() {
+  const n = netData;
+  if (!n) return;
+  $$(".nvtoggle").forEach(s => s.classList.toggle("on", s.dataset.v === netView));
+  const rows = (netView === "24h" ? n.hours : n.days) || [];
+  const peak = Math.max(...rows.map(x => x.rx + x.tx), 1);
+  $("#net-bars").innerHTML = rows.map(x =>
+    `<span class="d" data-t="${x.title}" data-rx="${x.rx}" data-tx="${x.tx}">`
+    + `<span class="up" style="height:${(x.tx / peak) * 100}%"></span>`
+    + `<span class="dn" style="height:${(x.rx / peak) * 100}%"></span></span>`).join("");
+  if (!rows.length) { $("#net-days-range").textContent = ""; return; }
+  const busy = rows.reduce((a, x) => (x.rx + x.tx) > (a.rx + a.tx) ? x : a);
+  const sep = ' <span class="muted">|</span> ';
+  $("#net-days-range").innerHTML =
+    `peak${sep}${esc(busy.label)}${sep}`
+    + `<span class="rx">&#8595;&nbsp;${fmtBytes(busy.rx)}</span> `
+    + `<span class="tx">&#8593;&nbsp;${fmtBytes(busy.tx)}</span> `
+    + `<span class="v">${fmtBytes(busy.rx + busy.tx)}</span>`;
+}
+
+/* ------------------------------------------------------------------ docker panel */
+let dockerData = null;
+let svcSort = "mem";
+let svcExpanded = false;
+let ctlAllowed = false;         // container start/stop/restart/logs available to this client
+const SVC_LIMIT = 10;
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+
+function portainerLink(c) {
+  const base = (cfg.portainerUrl || "").replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(base) || !c.id) return "";   // only real http(s) URLs
+  const ep = +cfg.portainerEndpoint || 1;
+  return `<a class="sb" href="${esc(base)}/#!/${ep}/docker/containers/${esc(c.id)}" target="_blank" rel="noopener">↗ portainer</a>`;
+}
+function ctlButtons(c) {
+  if (!ctlAllowed) return "";
+  const p = portainerLink(c);
+  const run = c.state === "running";
+  return `<div class="svc-ctl">`
+    + (run
+        ? `<button class="sb" data-a="restart">⟳ restart</button>`
+          + `<button class="sb stop" data-a="stop">◼ stop</button>`
+        : `<button class="sb start" data-a="start">▶ start</button>`)
+    + p
+    + `<button class="sb" data-a="logs">≡ logs</button>`
+    + `</div>`;
+}
+const CPUCLS = { ok: "cpu-ok", warn: "cpu-hot", crit: "cpu-max" };
+function cpuClass(cpu) { return CPUCLS[health(cpu || 0, 60, 150)]; }
+
+function renderDocker() {
+  const list = dockerData;
+  if (!list) return;
+  const up = list.filter(c => c.state === "running");
+  const totMem = up.reduce((s, c) => s + (c.mem || 0), 0);
+  const totCpu = up.reduce((s, c) => s + (c.cpu || 0), 0);
+  const haveStats = up.some(c => c.mem != null);
+  const maxMem = Math.max(...up.map(c => c.mem || 0), 1);
+
+  $("#docker-note").textContent = `${up.length}/${list.length} up`
+    + (haveStats ? ` · ${fmtBytes(totMem)} · ${totCpu.toFixed(0)}% cpu` : "")
+    + (ctlAllowed ? "" : " · controls: LAN only");
+  $$(".svsort").forEach(s => s.classList.toggle("on", s.dataset.s === svcSort));
+  $("#docker-list").classList.toggle("ctl", ctlAllowed);
+  const openNames = new Set($$(".svc.open", $("#docker-list")).map(el => el.dataset.name));
+
+  const running = up.slice().sort((a, b) => svcSort === "cpu"
+    ? (b.cpu || 0) - (a.cpu || 0) : (b.mem || 0) - (a.mem || 0));
+  const others = list.filter(c => c.state !== "running");   // always shown
+  const shown = svcExpanded ? running : running.slice(0, SVC_LIMIT);
+  const hidden = running.length - shown.length;
+
+  const row = c => {
+    let cd = "idle";
+    if (c.state === "running") cd = c.health === "unhealthy" ? "warn" : "up";
+    else if (c.state === "exited" || c.state === "dead") cd = "down";
+    const name = `<span class="sname"><span class="cd ${cd}"></span>${esc(c.name)}</span>`;
+    const stats = (c.state === "running" && c.mem != null);
+    const memRel = stats ? (c.mem / maxMem) * 100 : 0;      // vs the biggest container
+    const memCls = HL[health(c.mem || 0, 5e8, 2e9)];
+    const cpuHl  = HL[health(c.cpu || 0, 60, 150)];
+    const open = openNames.has(c.name) ? " open" : "";
+    const main = stats
+      ? name
+        + `<span class="scpubar${(c.cpu || 0) > 0.5 ? "" : " flat"}"><i style="width:${(c.cpu || 0) > 0.5 ? clamp(c.cpu, 1, 100) : 0}%"></i></span>`
+        + `<span class="scpu ${cpuHl}">${c.cpu.toFixed(c.cpu < 10 ? 1 : 0)}%</span>`
+        + `<span class="smem ${memCls}" title="resident memory · ${memRel.toFixed(0)}% of the largest">${fmtBytes(c.mem)}</span>`
+      : name + `<span class="sstate">${esc(c.state)}</span>`;
+    return `<div class="svc ${cpuClass(c.cpu)}${open}" data-name="${esc(c.name)}" `
+      + `title="${esc(c.name)} — ${esc(c.status || "")}">`
+      + `<div class="svc-main">${main}</div>`
+      + ctlButtons(c)
+      + `</div>`;
+  };
+  $("#docker-list").innerHTML = [...shown, ...others].map(row).join("");
+
+  const more = $("#svc-more");
+  if (!svcExpanded && hidden > 0) {
+    more.textContent = `show ${hidden} more ▾`; more.classList.remove("hidden");
+  } else if (svcExpanded && running.length > SVC_LIMIT) {
+    more.textContent = "show less ▴"; more.classList.remove("hidden");
+  } else {
+    more.classList.add("hidden");
+  }
+}
+
+/* container actions */
+function toast(msg, isErr) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = isErr ? "show err" : "show";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.className = "", 2600);
+}
+let confirmResolve = null;
+function confirmDialog(msg, { title = "confirm", note = "", yes = "confirm", danger = false } = {}) {
+  $("#confirm-title").textContent = title;
+  $("#confirm-msg").innerHTML = esc(msg) + (note ? `<span class="cq">${esc(note)}</span>` : "");
+  const y = $("#confirm-yes");
+  y.textContent = yes;
+  y.classList.toggle("danger", danger);
+  $("#confirm-overlay").classList.add("open");
+  y.focus();
+  return new Promise(res => { confirmResolve = res; });
+}
+function closeConfirm(v) {
+  $("#confirm-overlay").classList.remove("open");
+  const r = confirmResolve; confirmResolve = null;
+  if (r) r(v);
+}
+
+async function containerAction(name, action, btn) {
+  if (action === "stop" && !await confirmDialog(`Stop “${name}”?`, {
+    title: "stop container", yes: "stop " + name, danger: true,
+    note: "It won't start again until you start it or the host reboots.",
+  })) return;
+  if (btn) { btn.disabled = true; }
+  try {
+    const r = await fetch(`/__ctl/container/${encodeURIComponent(name)}/${action}`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(j.error || `${action} failed (${r.status})`, true); return; }
+    toast(`${name}: ${action} ok`);
+    refreshNow();                       // pick up the new state
+  } catch (e) {
+    toast(`${action} failed`, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function showLogs(name) {
+  $("#logs-title").textContent = name + " · logs";
+  $("#logs-body").textContent = "loading…";
+  $("#logs-overlay").classList.add("open");
+  try {
+    const r = await fetch(`/__ctl/container/${encodeURIComponent(name)}/logs`);
+    const txt = await r.text();
+    $("#logs-body").textContent = r.ok ? (txt || "(no output)") : `error: ${txt}`;
+    const b = $("#logs-body"); b.scrollTop = b.scrollHeight;
+  } catch (e) {
+    $("#logs-body").textContent = "failed to fetch logs";
+  }
+}
+
+/* ------------------------------------------------------------------ render: clocks */
+function renderClocks() {
+  const host = $("#clocks");
+  host.innerHTML = (cfg.clocks || []).map((c, i) =>
+    `<div class="clock" data-i="${i}"><div class="cl">${esc(c.label)}</div>
+     <div class="ct">--:--:--</div><div class="cdte"></div></div>`).join("");
+  tickClocks();
+}
+function tickClocks() {
+  const now = new Date();
+  $("#headclock").textContent = now.toLocaleTimeString();
+  $("#headdate").textContent = now.toLocaleDateString(undefined,
+    { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  $$("#clocks .clock").forEach(el => {
+    const c = cfg.clocks[+el.dataset.i];
+    if (!c) return;
+    try {
+      el.querySelector(".ct").textContent =
+        now.toLocaleTimeString("en-GB", { timeZone: c.tz });
+      el.querySelector(".cdte").textContent =
+        now.toLocaleDateString("en-GB", { timeZone: c.tz, weekday: "short", day: "numeric", month: "short" });
+    } catch (e) { el.querySelector(".ct").textContent = "bad tz"; }
+  });
+}
+
+/* ------------------------------------------------------------------ render: weather */
+const WMO = {
+  0: ["☀️", "clear"], 1: ["\u{1f324}️", "mainly clear"], 2: ["⛅", "partly cloudy"],
+  3: ["☁️", "overcast"], 45: ["\u{1f32b}️", "fog"], 48: ["\u{1f32b}️", "rime fog"],
+  51: ["\u{1f326}️", "light drizzle"], 53: ["\u{1f326}️", "drizzle"], 55: ["\u{1f327}️", "dense drizzle"],
+  61: ["\u{1f327}️", "light rain"], 63: ["\u{1f327}️", "rain"], 65: ["\u{1f327}️", "heavy rain"],
+  71: ["\u{1f328}️", "light snow"], 73: ["\u{1f328}️", "snow"], 75: ["❄️", "heavy snow"],
+  80: ["\u{1f326}️", "showers"], 81: ["\u{1f327}️", "rain showers"], 82: ["⛈️", "violent showers"],
+  95: ["⛈️", "thunderstorm"], 96: ["⛈️", "thunderstorm"], 99: ["⛈️", "hailstorm"]
+};
+let wxCache = { at: 0, html: "" };
+
+async function renderWeather(force) {
+  const host = $("#weather");
+  const locs = cfg.weather || [];
+  if (!locs.length) { host.innerHTML = '<span class="muted">no locations — add in settings</span>'; return; }
+  if (!force && Date.now() - wxCache.at < 10 * 60 * 1000 && wxCache.html) { host.innerHTML = wxCache.html; return; }
+  try {
+    const parts = await Promise.all(locs.map(async l => {
+      const u = `https://api.open-meteo.com/v1/forecast?latitude=${l.latitude}&longitude=${l.longitude}`
+        + `&current=temperature_2m,apparent_temperature,weather_code`
+        + `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=4`;
+      const r = await (await fetch(u)).json();
+      const w = WMO[r.current.weather_code] || ["\u{1f321}️", ""];
+      const d = r.daily, dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const fc = (d.time || []).slice(1, 4).map((iso, i) => {
+        const n = i + 1, fw = WMO[d.weather_code[n]] || ["", ""];
+        const day = dow[new Date(iso + "T12:00").getDay()];
+        return `<span class="fc"><span class="fcd">${day}</span> ${fw[0]}
+          <span class="fct">${Math.round(d.temperature_2m_max[n])}°<span class="fcl">${Math.round(d.temperature_2m_min[n])}°</span></span></span>`;
+      }).join("");
+      return `<div class="wc">
+        <div class="wnow">
+          <span class="wicon">${w[0]}</span>
+          <span>
+            <span class="wname">${esc(l.name)}</span> <span class="wtemp">${Math.round(r.current.temperature_2m)}°</span><br>
+            <span class="wsub">${w[1]} · feels ${Math.round(r.current.apparent_temperature)}°
+            · H ${Math.round(d.temperature_2m_max[0])}° L ${Math.round(d.temperature_2m_min[0])}°</span>
+          </span>
+        </div>
+        <div class="wfc">${fc}</div>
+      </div>`;
+    }));
+    wxCache = { at: Date.now(), html: parts.join("") };
+    host.innerHTML = wxCache.html;
+  } catch (e) {
+    host.innerHTML = '<span class="muted">weather unavailable (no internet?)</span>';
+  }
+}
+
+/* ------------------------------------------------------------------ settings UI */
+const COMMON_TZ = ["UTC",
+  "America/Chicago","America/Denver","America/Los_Angeles","America/Mexico_City","America/New_York",
+  "America/Sao_Paulo","America/Toronto",
+  "Africa/Cairo","Africa/Johannesburg","Africa/Lagos",
+  "Asia/Bangkok","Asia/Dubai","Asia/Hong_Kong","Asia/Jakarta","Asia/Jerusalem","Asia/Karachi",
+  "Asia/Kolkata","Asia/Muscat","Asia/Shanghai","Asia/Singapore","Asia/Tehran","Asia/Tokyo",
+  "Australia/Sydney","Pacific/Auckland",
+  "Europe/Berlin","Europe/Istanbul","Europe/London","Europe/Madrid","Europe/Moscow","Europe/Paris"];
+
+function openSettings() {
+  $("#tzlist").innerHTML = COMMON_TZ.map(t => `<option value="${t}">`).join("");
+  drawWeatherCfg();
+  drawClockCfg();
+  drawPanelCfg();
+  $("#cfg-name").value = cfg.title || "";
+  $("#fav-preview").src = cfg.favicon || $("#favicon").href;
+  $("#fav-emoji").value = "";
+  $("#cfg-refresh").value = cfg.refreshSec;
+  $("#export-wrap").classList.add("hidden");
+  $("#overlay").classList.add("open");
+}
+function closeSettings() { $("#overlay").classList.remove("open"); }
+
+/* panels: reorderable list with drag, size, show/hide */
+let dragPanel = null;
+function drawPanelCfg() {
+  const host = $("#cfg-panels");
+  host.innerHTML = cfg.panelOrder.map(p => {
+    const on = cfg.panels[p] !== false;
+    const sz = (cfg.panelSize && cfg.panelSize[p]) || "normal";
+    const opt = s => `<option value="${s}" ${sz === s ? "selected" : ""}>${s}</option>`;
+    return `<div class="pcf ${on ? "" : "off"}" draggable="true" data-p="${p}">
+      <span class="grip">⠿</span>
+      <span class="pn">${p}</span>
+      <select data-sz>${opt("normal")}${opt("wide")}${opt("full")}</select>
+      <label><input type="checkbox" data-vis ${on ? "checked" : ""}> show</label>
+    </div>`;
+  }).join("");
+  $$(".pcf", host).forEach(row => {
+    row.ondragstart = e => { dragPanel = row.dataset.p; e.dataTransfer.effectAllowed = "move"; };
+    row.ondragover  = e => { e.preventDefault(); row.classList.add("drag-over"); };
+    row.ondragleave = () => row.classList.remove("drag-over");
+    row.ondrop = e => {
+      e.preventDefault(); row.classList.remove("drag-over");
+      const from = cfg.panelOrder.indexOf(dragPanel), to = cfg.panelOrder.indexOf(row.dataset.p);
+      if (from < 0 || to < 0 || from === to) return;
+      cfg.panelOrder.splice(to, 0, cfg.panelOrder.splice(from, 1)[0]);
+      drawPanelCfg();
+    };
+    row.querySelector("[data-vis]").onchange = e => {
+      cfg.panels[row.dataset.p] = e.target.checked;
+      row.classList.toggle("off", !e.target.checked);
+    };
+    row.querySelector("[data-sz]").onchange = e => {
+      (cfg.panelSize = cfg.panelSize || {})[row.dataset.p] = e.target.value;
+    };
+  });
+}
+
+function drawWeatherCfg() {
+  $("#cfg-weather").innerHTML = (cfg.weather || []).map((l, i) =>
+    `<div class="item"><span class="txt">${esc(l.name)} <span class="muted">(${(+l.latitude).toFixed(2)}, ${(+l.longitude).toFixed(2)})</span></span>
+     <span class="rm" data-wxrm="${i}">x</span></div>`).join("") || '<span class="muted">none</span>';
+  $$("[data-wxrm]").forEach(b => b.onclick = () => { cfg.weather.splice(+b.dataset.wxrm, 1); drawWeatherCfg(); });
+}
+function drawClockCfg() {
+  $("#cfg-clocks").innerHTML = (cfg.clocks || []).map((c, i) =>
+    `<div class="item"><span class="txt">${esc(c.label)} <span class="muted">${esc(c.tz)}</span></span>
+     <span class="rm" data-clkrm="${i}">x</span></div>`).join("") || '<span class="muted">none</span>';
+  $$("[data-clkrm]").forEach(b => b.onclick = () => { cfg.clocks.splice(+b.dataset.clkrm, 1); drawClockCfg(); });
+}
+
+async function wxSearch() {
+  const q = $("#wx-search").value.trim();
+  if (!q) return;
+  $("#wx-results").textContent = "searching…";
+  try {
+    const r = await (await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6`)).json();
+    const res = (r.results || [])
+      .filter(x => Number.isFinite(x.latitude) && Number.isFinite(x.longitude))
+      .map(x => ({
+        name: x.name + (x.admin1 ? ", " + x.admin1 : "") + (x.country_code ? " (" + x.country_code + ")" : ""),
+        country: x.country || "", latitude: +x.latitude, longitude: +x.longitude,
+      }));
+    $("#wx-results").innerHTML = res.length
+      ? res.map((x, i) => `<div data-i="${i}">${esc(x.name)} <span class="muted">· ${esc(x.country)}</span></div>`).join("")
+      : '<span class="muted">no matches</span>';
+    $$("#wx-results div[data-i]").forEach(el => el.onclick = () => {
+      const { name, latitude, longitude } = res[+el.dataset.i];
+      cfg.weather.push({ name, latitude, longitude });
+      $("#wx-results").innerHTML = ""; $("#wx-search").value = "";
+      drawWeatherCfg();
+    });
+  } catch (e) { $("#wx-results").textContent = "search failed"; }
+}
+
+async function saveSettings() {
+  cfg.title = $("#cfg-name").value.trim() || "systemdashboard";
+  cfg.refreshSec = clamp(+$("#cfg-refresh").value || 120, 5, 900);
+  // panels/order/size/favicon are already updated live by the settings widgets
+
+  applyBranding();
+  applyLayout();
+  renderClocks();
+  renderWeather(true);
+  startLoop();
+  closeSettings();
+
+  // persist: server-side (all viewers) if we can, else per-browser
+  const { favicon, ...rest } = cfg;   // put favicon last so config.json stays readable
+  const payload = { ...rest, favicon };
+  try {
+    const r = await fetch("/__ctl/config", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) { try { localStorage.removeItem(LS_KEY); } catch (e) {} toast("settings saved"); return; }
+    const j = await r.json().catch(() => ({}));
+    saveConfig(); toast(j.error ? "saved locally — " + j.error : "saved to this browser only");
+  } catch (e) {
+    saveConfig(); toast("saved to this browser only");
+  }
+}
+
+/* ------------------------------------------------------------------ loop */
+let loopTimer = null;
+function startLoop() {
+  clearInterval(loopTimer);
+  tick();
+  loopTimer = setInterval(tick, (cfg.refreshSec || 120) * 1000);
+}
+let refreshing = false;
+async function refreshNow() {
+  const dot = $("#statusdot");
+  dot.classList.remove("flash"); void dot.offsetWidth; dot.classList.add("flash");
+  if (refreshing) return;
+  refreshing = true;
+  const before = lastData ? lastData.ts : 0;
+  clearInterval(loopTimer);
+  try { await fetch("/__ctl/refresh", { method: "POST" }); } catch (e) {}
+  // wait for the agent to publish a newer snapshot (it wakes on the trigger)
+  for (let i = 0; i < 14; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    await tick();
+    if (lastData && lastData.ts > before) break;
+  }
+  refreshing = false;
+  loopTimer = setInterval(tick, (cfg.refreshSec || 120) * 1000);
+}
+
+/* ------------------------------------------------------------------ boot */
+(async function () {
+  await loadConfig();
+  $("#ps1").textContent = "visitor@" + (cfg.title || "host");
+  $("#btn-theme").textContent = `[t] ${currentTheme()}`;
+  applyBranding();
+  renderClocks();
+  applyLayout();
+  renderWeather();
+  startLoop();
+  setInterval(tickClocks, 1000);
+  setInterval(() => renderWeather(), 60 * 1000);
+
+  $("#btn-settings").onclick = openSettings;
+  $("#settings-close").onclick = closeSettings;
+  $("#btn-theme").onclick = toggleTheme;
+  $("#btn-refresh").onclick = refreshNow;
+  $("#svc-more").onclick = () => { svcExpanded = !svcExpanded; renderDocker(); };
+  $$(".svsort").forEach(s => s.onclick = () => { svcSort = s.dataset.s; renderDocker(); });
+  $("#overlay").onclick = e => { if (e.target === $("#overlay")) closeSettings(); };
+
+  // container controls: is this client allowed?
+  try {
+    const w = await (await fetch("/__ctl/whoami")).json();
+    ctlAllowed = !!w.controls;
+  } catch (e) { ctlAllowed = false; }
+  if (dockerData) renderDocker();
+
+  $("#docker-list").addEventListener("click", e => {
+    const btn = e.target.closest("button.sb");
+    if (btn) {
+      const name = btn.closest(".svc")?.dataset.name;
+      const a = btn.dataset.a;
+      if (!name || !a) return;
+      if (a === "logs") showLogs(name);
+      else containerAction(name, a, btn);
+      return;
+    }
+    // click the row (not a link) to reveal / hide its controls
+    if (e.target.closest("a")) return;
+    const main = e.target.closest(".svc-main");
+    if (main && ctlAllowed) {
+      const row = main.parentElement, wasOpen = row.classList.contains("open");
+      $$(".svc.open", $("#docker-list")).forEach(el => el.classList.remove("open"));
+      row.classList.toggle("open", !wasOpen);   // one open at a time
+    }
+  });
+  $("#logs-close").onclick = () => $("#logs-overlay").classList.remove("open");
+  $("#logs-overlay").onclick = e => { if (e.target === $("#logs-overlay")) $("#logs-overlay").classList.remove("open"); };
+  $("#confirm-yes").onclick = () => closeConfirm(true);
+  $("#confirm-no").onclick = () => closeConfirm(false);
+  $("#confirm-x").onclick = () => closeConfirm(false);
+  $("#confirm-overlay").onclick = e => { if (e.target === $("#confirm-overlay")) closeConfirm(false); };
+
+  // network bar tooltip + 30d/24h toggle
+  const tip = $("#nettip");
+  $("#net-bars").addEventListener("mousemove", e => {
+    const d = e.target.closest(".d");
+    if (!d) { tip.classList.remove("show"); return; }
+    const rx = +d.dataset.rx, tx = +d.dataset.tx;
+    tip.innerHTML = `<div class="nd">${d.dataset.t}</div>`
+      + `<span class="rx">↓ ${fmtBytes(rx)}</span>  <span class="tx">↑ ${fmtBytes(tx)}</span>`
+      + `  <span class="muted">= ${fmtBytes(rx + tx)}</span>`;
+    tip.classList.add("show");
+    const r = tip.getBoundingClientRect();
+    let x = e.clientX + 12, y = e.clientY - r.height - 10;
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 12;
+    if (y < 8) y = e.clientY + 16;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  });
+  $("#net-bars").addEventListener("mouseleave", () => tip.classList.remove("show"));
+  $$(".nvtoggle").forEach(s => s.onclick = () => { netView = s.dataset.v; renderNetBars(); });
+  $("#wx-add").onclick = wxSearch;
+  $("#wx-search").onkeydown = e => { if (e.key === "Enter") wxSearch(); };
+  $("#clk-add").onclick = () => {
+    const label = $("#clk-label").value.trim(), tz = $("#clk-tz").value.trim();
+    if (!label || !tz) return;
+    try { new Date().toLocaleString("en-GB", { timeZone: tz }); } catch (e) { alert("invalid timezone"); return; }
+    cfg.clocks.push({ label, tz });
+    $("#clk-label").value = ""; $("#clk-tz").value = "";
+    drawClockCfg();
+  };
+  $("#cfg-save").onclick = saveSettings;
+  $("#cfg-reset").onclick = () => {
+    localStorage.removeItem(LS_KEY);
+    cfg = structuredClone(DEFAULTS);
+    applyBranding(); openSettings(); renderClocks(); applyLayout(); renderWeather(true); startLoop();
+  };
+  $("#cfg-export").onclick = () => {
+    $("#export-wrap").classList.remove("hidden");
+    $("#export-lbl").textContent = "www/config.json — the container-control endpoint writes this for you on save";
+    $("#export-text").value = JSON.stringify(cfg, null, 2);
+    $("#export-text").select();
+  };
+
+  // favicon / name widgets
+  $("#fav-upload").onclick = () => $("#fav-file").click();
+  $("#fav-file").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 200 * 1024) { toast("icon must be under 200 KB", true); return; }
+    const rd = new FileReader();
+    rd.onload = () => { cfg.favicon = rd.result; $("#fav-preview").src = rd.result; };
+    rd.readAsDataURL(f);
+  };
+  $("#fav-emoji").oninput = e => {
+    const em = e.target.value.trim();
+    if (!em) return;
+    const c = document.createElement("canvas"); c.width = c.height = 64;
+    const x = c.getContext("2d");
+    x.font = "52px serif"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillText(em, 32, 36);
+    cfg.favicon = c.toDataURL("image/png");
+    $("#fav-preview").src = cfg.favicon;
+  };
+  $("#fav-clear").onclick = () => {
+    cfg.favicon = ""; $("#fav-emoji").value = "";
+    $("#fav-preview").src = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+  };
+
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if ($("#confirm-overlay").classList.contains("open")) {
+      if (e.key === "Escape") closeConfirm(false);
+      if (e.key === "Enter") { e.preventDefault(); closeConfirm(true); }
+      return;
+    }
+    if (e.key === "s") { e.preventDefault(); $("#overlay").classList.contains("open") ? closeSettings() : openSettings(); }
+    if (e.key === "t") toggleTheme();
+    if (e.key === "r") { e.preventDefault(); refreshNow(); }
+    if (e.key === "Escape") { closeSettings(); $("#logs-overlay").classList.remove("open"); }
+  });
+})();
+</script>
+</body>
+</html>

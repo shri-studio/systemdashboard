@@ -1,0 +1,70 @@
+{
+  "title": "homeserver",
+  "refreshSec": 120,
+  "portainerUrl": "http://localhost:9000",
+  "portainerEndpoint": 1,
+  "weather": [
+    {
+      "name": "London",
+      "latitude": 51.5072,
+      "longitude": -0.1276,
+      "timezone": "Europe/London"
+    }
+  ],
+  "clocks": [
+    {
+      "label": "Local",
+      "tz": "Europe/London"
+    },
+    {
+      "label": "New York",
+      "tz": "America/New_York"
+    },
+    {
+      "label": "Tokyo",
+      "tz": "Asia/Tokyo"
+    }
+  ],
+  "disks": {
+    "/": {
+      "label": "system"
+    },
+    "/mnt/media": {
+      "label": "media"
+    },
+    "/mnt/backup": {
+      "label": "backup"
+    }
+  },
+  "panels": {
+    "mem": true,
+    "cpu": true,
+    "temp": true,
+    "storage": true,
+    "network": true,
+    "docker": true,
+    "clocks": true,
+    "weather": true
+  },
+  "favicon": "",
+  "panelOrder": [
+    "mem",
+    "cpu",
+    "temp",
+    "storage",
+    "network",
+    "docker",
+    "clocks",
+    "weather"
+  ],
+  "panelSize": {
+    "mem": "normal",
+    "cpu": "normal",
+    "temp": "normal",
+    "storage": "wide",
+    "network": "wide",
+    "docker": "full",
+    "clocks": "normal",
+    "weather": "normal"
+  }
+}

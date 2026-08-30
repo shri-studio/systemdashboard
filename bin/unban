@@ -1,0 +1,12 @@
+#!/bin/sh
+# Remove an IP from the block list. Takes effect immediately (no restart).
+#   bin/unban 203.0.113.7
+set -e
+cd "$(dirname "$0")/.."
+[ -n "$1" ] || { echo "usage: bin/unban <ip>"; exit 1; }
+f=data/bans.json
+[ -f "$f" ] || { echo "no bans file"; exit 0; }
+tmp=$(mktemp)
+jq --arg ip "$1" 'del(.[$ip])' "$f" > "$tmp" && mv "$tmp" "$f"
+echo "unbanned $1"
+jq -r 'to_entries | if length==0 then "no IPs currently blocked" else "still blocked: " + (keys | join(", ")) end' "$f"

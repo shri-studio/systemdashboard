@@ -1,0 +1,13 @@
+#!/bin/sh
+# Show currently blocked IPs and the whitelist.
+cd "$(dirname "$0")/.."
+echo "== blocked =="
+if [ -f data/bans.json ]; then
+  jq -r 'to_entries[] | "\(.key)  since \(.value.at / 1000 | strftime("%Y-%m-%d %H:%M UTC"))  \(if .value.until == 0 then "(permanent)" else "until " + (.value.until/1000 | strftime("%Y-%m-%d %H:%M UTC")) end)"' data/bans.json
+  jq -e 'length > 0' data/bans.json >/dev/null 2>&1 || echo "(none)"
+else
+  echo "(none)"
+fi
+echo
+echo "== whitelist =="
+grep -v '^#' data/whitelist.txt 2>/dev/null | grep -v '^[[:space:]]*$' || echo "(none)"

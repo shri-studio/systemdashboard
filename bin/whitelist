@@ -1,0 +1,17 @@
+#!/bin/sh
+# Add an IP or CIDR to the permanent whitelist (never blocked, skips
+# login-fail tracking). Takes effect immediately. Also unbans it.
+#   bin/whitelist 203.0.113.7
+#   bin/whitelist 198.51.100.0/24
+set -e
+cd "$(dirname "$0")/.."
+[ -n "$1" ] || { echo "usage: bin/whitelist <ip|cidr>"; exit 1; }
+f=data/whitelist.txt
+touch "$f"
+if grep -qxF "$1" "$f"; then
+  echo "$1 already whitelisted"
+else
+  echo "$1" >> "$f"
+  echo "whitelisted $1"
+fi
+"$(dirname "$0")/unban" "$1" >/dev/null 2>&1 || true   # also lift any existing ban

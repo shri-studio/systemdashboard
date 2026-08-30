@@ -1,0 +1,66 @@
+name: systemdashboard
+
+services:
+  auth:
+    build: ./auth
+    image: systemdashboard-auth:local
+    container_name: systemdashboard-auth
+    restart: unless-stopped
+    ports:
+      # BIND_ADDR=127.0.0.1 in .env when only a local reverse proxy / tunnel
+      # should reach the gateway (proxy headers are trusted — see TRUST_PROXY).
+      - "${BIND_ADDR:-0.0.0.0}:${PORT:-20002}:8080"
+    environment:
+      - UPSTREAM=http://web:80
+      - AUTH_USER=${AUTH_USER:-admin}
+      - AUTH_PASS=${AUTH_PASS:?set AUTH_PASS in .env}
+      - MAX_FAILS=${MAX_FAILS:-3}
+      - BAN_HOURS=${BAN_HOURS:-0}
+      - SESSION_HOURS=${SESSION_HOURS:-720}
+      - TRUST_PROXY=${TRUST_PROXY:-1}
+      - SITE_NAME=${SITE_NAME:-homeserver}
+      - WHITELIST=${WHITELIST:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # container start/stop/restart/logs from the UI: "1" = whitelisted IPs
+      # (LAN) only, "0" = any logged-in user. refresh trigger is always allowed.
+      - CTL_LAN_ONLY=${CTL_LAN_ONLY:-1}
+      - REFRESH_FILE=/www/.refresh
+    volumes:
+      - ./data:/data
+      - ./www:/www                                 # write the .refresh trigger
+      - /var/run/docker.sock:/var/run/docker.sock   # container start/stop/restart/logs
+    depends_on:
+      - web
+
+  web:
+    image: nginx:alpine
+    container_name: systemdashboard-web
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  agent:
+    build: ./collector
+    image: systemdashboard-agent:local
+    container_name: systemdashboard-agent
+    restart: unless-stopped
+    environment:
+      - HOST_ROOT=/host
+      - OUT_FILE=/www/data.json
+      - INTERVAL=${INTERVAL:-120}
+      - NET_IFACE=${NET_IFACE:-}
+      - DISKS=${DISKS:-/}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ./www:/www
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Whole host FS, read-only, with rslave so nested mounts (e.g. /srv,
+      # /mnt/*) are visible to the agent for per-drive usage.
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+        bind:
+          propagation: rslave
