@@ -8,22 +8,24 @@ Docker service status, weather and world clocks — in one HTML file.
 
 ## Design
 
-Three small containers (~30 MB RAM total), one `docker compose up`,
-**no sudo, no host packages**:
+Three small containers, one `docker compose up`, **no sudo, no host
+packages**:
 
 | service | image | job |
 | --- | --- | --- |
-| `auth`  | `node:22-alpine` (~17 MB) | login gateway on `PORT`; the only exposed port. Session cookie, per-IP lockout, whitelist. Proxies authed traffic to `web`. Serves `/__ctl/*` (refresh trigger + LAN-only container start/stop/restart/logs via the docker socket). |
+| `auth`  | `node:22-alpine` | login gateway on `PORT`; the only exposed port. Session cookie, per-IP lockout, whitelist. Proxies authed traffic to `web`. Serves `/__ctl/*` (refresh trigger + LAN-only container start/stop/restart/logs via the docker socket). |
 | `web`   | `nginx:alpine` | serve `www/` (the static page + `data.json`); internal only |
-| `agent` | `alpine` + bash (~2 MB, 22 MB for ~2 s per tick) | reads host metrics and writes `www/data.json` on the `.refresh` trigger (the dashboard drops it while open) or, idle, every `INTERVAL` seconds |
+| `agent` | `alpine` + bash | reads host metrics and writes `www/data.json` on the `.refresh` trigger (the dashboard drops it while open) or, idle, every `INTERVAL` seconds |
 
-Measured idle: **~21 MiB RAM total**, CPU effectively zero (a <5% blip per
-container during the agent's tick).
+Measured: **~11 MiB real memory** (anonymous RSS — agent ~1, auth ~9, web ~1;
+`docker stats` reports several times that because it counts reclaimable page
+cache). CPU idles at zero — the agent uses ~25 % of one core for the ~2 s a
+tick takes, mostly the `docker stats` sample.
 
 The agent bind-mounts the host root read-only at `/host` with **`rslave` mount
 propagation** (the same trick `node_exporter` uses) so nested mounts such as
-`/srv` and `/mnt/*` are visible for per-drive usage. It also mounts
-`docker.sock` read-only for container status.
+`/mnt/*` are visible for per-drive usage. It also mounts `docker.sock`
+read-only for container status.
 
 Data sources — all read-only, nothing installed on the host:
 
@@ -39,19 +41,44 @@ Data sources — all read-only, nothing installed on the host:
 | weather       | [Open-Meteo](https://open-meteo.com) — browser-side, no key |
 | world clocks  | browser `Intl` — browser-side |
 
-`vnstat` must be running on the host (it already logs to `/var/lib/vnstat`).
-If it isn't: `sudo apt install vnstat && sudo systemctl enable --now vnstat`.
+## Requirements
+
+- **Docker** with the Compose plugin (`docker compose`)
+- **`vnstat` running on the host** — it logs to `/var/lib/vnstat`, which the
+  agent reads. Install with
+  `sudo apt install vnstat && sudo systemctl enable --now vnstat`; give it a
+  few minutes (ideally a day) to build history before the network panel fills
+  in
+- The host timezone set (`timedatectl set-timezone …`) — `TZ` in `.env` must
+  match it, or the network panel's today/month boundaries drift
 
 ## Setup
 
 ```sh
+git clone https://github.com/shri-studio/systemdashboard.git
+cd systemdashboard
+
 cp docker-compose.example.yml docker-compose.yml
-cp .env.example .env                        # set AUTH_PASS (required), PORT, TZ, NET_IFACE, DISKS
-cp www/config.example.json www/config.json  # title, weather, clocks, drive labels, portainerUrl
+cp .env.example .env
+cp www/config.example.json www/config.json
+```
+
+Edit **`.env`**:
+
+- `AUTH_USER` and `AUTH_PASS` — **required**, pick a real password
+  (or set `AUTH_PASS_HASH` to a sha256 hex digest and leave `AUTH_PASS` unset)
+- `PORT`, `TZ`, `NET_IFACE` (blank = auto-detect), `DISKS` (comma-separated
+  host mountpoints)
+
+Edit **`www/config.json`**: title, weather locations, clocks, drive labels
+(all of this is also editable live in the settings panel later).
+
+```sh
 docker compose up -d --build
 ```
 
-Open `http://<host>:<PORT>` (default `20002`) and log in.
+Open `http://<host>:<PORT>` (default `20002`) and log in. The first snapshot
+takes a few seconds — the panels show "connecting…" until then.
 
 `docker-compose.yml`, `.env` and `www/config.json` are git-ignored — the
 `*.example` files are the templates, so your edits stay local and never
@@ -112,19 +139,12 @@ that endpoint isn't reachable it falls back to this browser's
 `www/config.json` is git-ignored; ship-time defaults live in
 `www/config.example.json`.
 
-Per-drive labels and warnings:
+Per-drive labels and warnings, keyed by mountpoint:
 
 ```json
 "disks": {
-  "/srv": { "label": "media", "warn": "aging drive - ATA errors logged" }
-}
-```
-
-Per-drive labels and warnings:
-
-```json
-"disks": {
-  "/srv": { "label": "media", "warn": "aging drive - ATA errors logged" }
+  "/mnt/media":  { "label": "media" },
+  "/mnt/backup": { "label": "backup", "warn": "aging disk — check SMART" }
 }
 ```
 
