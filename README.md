@@ -15,7 +15,7 @@ Three small containers (~30 MB RAM total), one `docker compose up`,
 | --- | --- | --- |
 | `auth`  | `node:22-alpine` (~17 MB) | login gateway on `PORT`; the only exposed port. Session cookie, per-IP lockout, whitelist. Proxies authed traffic to `web`. Serves `/__ctl/*` (refresh trigger + LAN-only container start/stop/restart/logs via the docker socket). |
 | `web`   | `nginx:alpine` | serve `www/` (the static page + `data.json`); internal only |
-| `agent` | `alpine` + bash (~2 MB, 22 MB for ~2 s per tick) | every `INTERVAL` seconds — or on the `.refresh` trigger — read host metrics and write `www/data.json` |
+| `agent` | `alpine` + bash (~2 MB, 22 MB for ~2 s per tick) | reads host metrics and writes `www/data.json` on the `.refresh` trigger (the dashboard drops it while open) or, idle, every `INTERVAL` seconds |
 
 Measured idle: **~21 MiB RAM total**, CPU effectively zero (a <5% blip per
 container during the agent's tick).
@@ -31,7 +31,7 @@ Data sources — all read-only, nothing installed on the host:
 | --- | --- |
 | memory / swap | `/host/proc/meminfo` |
 | cpu % + per-core + load | `/host/proc/stat` deltas (aggregate + `cpuN`), `/host/proc/loadavg` |
-| trend sparklines | agent keeps the last 60 cpu/mem/temp samples (`www/.trend`) — the mem/cpu/thermal line covers the last 60 × `INTERVAL` (2 h at the default 120 s), and is drawn on first load rather than after a few polls |
+| trend sparklines | agent keeps the last 60 cpu/mem/temp samples (`www/.trend`), drawn on first load; the window is 60 samples wide (≈ 1 h of active viewing at `refreshSec` 60, longer if the page sat idle on the `INTERVAL` heartbeat) |
 | temperature   | `/host/sys/class/hwmon/*` (coretemp/k10temp…), thermal-zone fallback |
 | storage       | `statvfs` per mount + model/rotational from `/host/sys/class/block` |
 | network       | `vnstat --json` (totals, 30-day / 24-hour history, today/month averages) + live MB/s from `/sys/class/net/*/statistics` deltas |
@@ -159,15 +159,14 @@ Storage and network sit side by side; network's today / month / all-time
 figures are an aligned table (down · up · total · avg↓ · avg↑), with a
 `30d` / `24h` bar history below it (hover a bar for its down/up).
 
-**`r` / refresh** POSTs `/__ctl/refresh`, which drops a `.refresh` file the
-agent watches — it wakes from its sleep, samples immediately, and the UI
-polls until the new snapshot lands. So `r` gets genuinely fresh data
-despite the 120 s interval.
-
-**Refresh:** the agent regenerates `data.json` every `INTERVAL` seconds
-(default 120) and the UI polls at `refreshSec` (default 120). The live
-network rate is therefore an ~`INTERVAL`-second average. Press `r` or lower
-both for a snappier feel.
+**Refresh — demand-driven.** The agent samples only when asked: it watches
+for a `.refresh` file and wakes on it. The open dashboard drops that trigger
+on load and then every `refreshSec` (default 60) while its tab is visible;
+when the tab is hidden nothing polls. `r` does the same thing on demand.
+With no viewer at all, the agent falls back to a slow `INTERVAL` heartbeat
+(default 300 s) so `data.json`, the trend history and the "session" temp
+range don't drift too far. The live network rate is an average over
+whichever gap produced the latest snapshot.
 
 ## Layout
 

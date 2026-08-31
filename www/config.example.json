@@ -1,6 +1,6 @@
 {
   "title": "homeserver",
-  "refreshSec": 120,
+  "refreshSec": 60,
   "portainerUrl": "http://localhost:9000",
   "portainerEndpoint": 1,
   "weather": [

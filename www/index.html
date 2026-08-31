@@ -712,7 +712,7 @@ async function loadConfig() {
     DEFAULTS = await (await fetch("config.json?t=" + Date.now())).json();
   } catch (e) { DEFAULTS = {}; }
   DEFAULTS = Object.assign({
-    title: "systemdashboard", favicon: "", refreshSec: 120,
+    title: "systemdashboard", favicon: "", refreshSec: 60,
     weather: [], clocks: [], disks: {},
     panels: { mem: 1, cpu: 1, temp: 1, storage: 1, network: 1, docker: 1, clocks: 1, weather: 1 },
     panelOrder: ["mem", "cpu", "temp", "storage", "network", "docker", "clocks", "weather"],
@@ -811,11 +811,12 @@ async function tick() {
 function setStatus(ts, hardFail) {
   const dot = $("#statusdot");
   const age = Date.now() / 1000 - (ts || 0);
-  const rs = cfg.refreshSec || 120;
+  // tolerate the agent's own heartbeat interval (it only samples on demand)
+  const budget = ((lastData && lastData.interval) || cfg.refreshSec || 60) * 2 + 120;
   let label;
   dot.classList.remove("down", "stale");
   if (hardFail && !ts) { dot.classList.add("down"); label = "agent unreachable"; }
-  else if (age > rs * 3) { dot.classList.add("stale"); label = "stale " + fmtDur(age) + " old"; }
+  else if (age > budget) { dot.classList.add("stale"); label = "stale " + fmtDur(age) + " old"; }
   else { label = "online"; }
   $("#lastupdate").textContent = label + " · " +
     new Date((ts || 0) * 1000).toLocaleTimeString();
@@ -1294,7 +1295,7 @@ async function wxSearch() {
 
 async function saveSettings() {
   cfg.title = $("#cfg-name").value.trim() || "systemdashboard";
-  cfg.refreshSec = clamp(+$("#cfg-refresh").value || 120, 5, 900);
+  cfg.refreshSec = clamp(+$("#cfg-refresh").value || 60, 5, 900);
   // panels/order/size/favicon are already updated live by the settings widgets
 
   applyBranding();
@@ -1320,31 +1321,55 @@ async function saveSettings() {
   }
 }
 
-/* ------------------------------------------------------------------ loop */
-let loopTimer = null;
-function startLoop() {
+/* ------------------------------------------------------------------ loop
+   The agent only samples on demand (it wakes on the /__ctl/refresh trigger),
+   so the page drives the cadence: one refresh on load, then every refreshSec
+   while the tab is visible. When it's hidden nothing polls, and the agent
+   falls back to its own slow INTERVAL heartbeat. */
+let loopTimer = null, clockTimer = null, wxTimer = null;
+
+function scheduleLoop() {
   clearInterval(loopTimer);
-  tick();
-  loopTimer = setInterval(tick, (cfg.refreshSec || 120) * 1000);
+  loopTimer = setInterval(() => { if (!document.hidden) refreshNow(true); },
+                          (cfg.refreshSec || 60) * 1000);
 }
+function startLoop() { scheduleLoop(); refreshNow(true); }
+
+function startTimers() {
+  stopTimers();                    // idempotent — never stack intervals
+  scheduleLoop();
+  clockTimer = setInterval(tickClocks, 1000);
+  wxTimer    = setInterval(() => renderWeather(), 60 * 1000);
+}
+function stopTimers() {
+  [loopTimer, clockTimer, wxTimer].forEach(clearInterval);
+  loopTimer = clockTimer = wxTimer = null;
+}
+
 let refreshing = false;
-async function refreshNow() {
-  const dot = $("#statusdot");
-  dot.classList.remove("flash"); void dot.offsetWidth; dot.classList.add("flash");
+async function refreshNow(silent) {
+  if (!silent) {
+    const dot = $("#statusdot");
+    dot.classList.remove("flash"); void dot.offsetWidth; dot.classList.add("flash");
+  }
   if (refreshing) return;
   refreshing = true;
+  await tick();                                   // show the current snapshot first
   const before = lastData ? lastData.ts : 0;
-  clearInterval(loopTimer);
   try { await fetch("/__ctl/refresh", { method: "POST" }); } catch (e) {}
-  // wait for the agent to publish a newer snapshot (it wakes on the trigger)
+  // then poll until the agent publishes one newer than that (or give up ~7 s)
   for (let i = 0; i < 14; i++) {
     await new Promise(r => setTimeout(r, 500));
     await tick();
     if (lastData && lastData.ts > before) break;
   }
   refreshing = false;
-  loopTimer = setInterval(tick, (cfg.refreshSec || 120) * 1000);
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopTimers();
+  else { startTimers(); tickClocks(); renderWeather(); refreshNow(true); }
+});
 
 /* ------------------------------------------------------------------ boot */
 (async function () {
@@ -1355,9 +1380,9 @@ async function refreshNow() {
   renderClocks();
   applyLayout();
   renderWeather();
-  startLoop();
-  setInterval(tickClocks, 1000);
-  setInterval(() => renderWeather(), 60 * 1000);
+  tickClocks();
+  startTimers();
+  refreshNow(true);       // a fresh sample for the first view, not a stale data.json
 
   $("#btn-settings").onclick = openSettings;
   $("#settings-close").onclick = closeSettings;

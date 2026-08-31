@@ -8,7 +8,7 @@ set -uo pipefail
 HOST="${HOST_ROOT:-/host}"
 OUT="${OUT_FILE:-/www/data.json}"
 OUTDIR="$(dirname "$OUT")"
-INTERVAL="${INTERVAL:-15}"
+INTERVAL="${INTERVAL:-300}"   # slow heartbeat; the UI triggers fresh samples on demand
 IFACE_ENV="${NET_IFACE:-}"
 DISKS="${DISKS:-/}"
 VNSTAT_DB="$HOST/var/lib/vnstat"
@@ -333,7 +333,8 @@ collect() {
     --argjson host "$host" --argjson mem "$mem" --argjson cpu "$cpu" \
     --argjson temp "$temp" --argjson disks "$disks" --argjson net "${net:-null}" \
     --argjson docker "$docker" --rawfile trend "$TREND_FILE" \
-    '{ts:(now|floor), host:$host, mem:$mem, cpu:$cpu, temp:$temp,
+    --argjson interval "${INTERVAL:-300}" \
+    '{ts:(now|floor), interval:$interval, host:$host, mem:$mem, cpu:$cpu, temp:$temp,
       disks:$disks, net:$net, docker:$docker,
       trend: ($trend / "\n" | map(select(length > 0) | fromjson?))}' \
     > "$OUT.tmp" 2>/dev/null && mv "$OUT.tmp" "$OUT"
